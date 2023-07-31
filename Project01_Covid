@@ -1,0 +1,161 @@
+Check my Querry here https://console.cloud.google.com/bigquery?sq=447437408589:14409a4b299f4c5391a07451b61ced1a
+/*This is my project about global Covid cases from January 2020 to April 2021*/ 
+--To see all informations
+/*SELECT *
+FROM sqlportfolio01.Covid.Deaths
+ORDER BY 3,4*/
+
+/* SELECT *
+FROM sqlportfolio01.Covid.Vaccinations
+ORDER BY 3,4 */
+
+--I will use WHERE continent IS NOT NULL to exclude continents in location column
+
+
+SELECT location, date, total_cases, new_cases, total_deaths, population
+FROM Covid.Deaths
+WHERE continent IS NOT NULL
+ORDER BY 1,2 
+--Order by countries and the date
+
+--We will be looking at total cases vs total deaths in percentages
+--This shows the likelihood of dying from Covid of each countries/continents 
+SELECT location, date, total_cases, total_deaths, (total_deaths/total_cases)*100 AS DeathPercentage
+FROM Covid.Deaths
+WHERE location = 'Thailand' AND continent IS NOT NULL 
+ORDER BY date
+
+
+--We will be looking at total cases vs population
+--This will shows population who got Covid by percentage 
+SELECT location, date, population, total_cases, total_deaths, (total_cases/population)*100 AS CasesPercentageByPopulation
+FROM Covid.Deaths
+WHERE location = 'Thailand' AND continent IS NOT NULL 
+ORDER BY date
+
+--We look at which country has the highest Covid cases to population
+SELECT location, population, MAX(total_cases) AS HighestCovidCount, MAX((total_cases/population))*100 AS PercentageOfPopulationByCovid
+FROM Covid.Deaths
+GROUP BY location, population
+ORDER BY PercentageOfPopulationByCovid DESC
+
+--We look at which country has the highest death count
+SELECT location, MAX(total_deaths) AS TotalDeathCount
+FROM Covid.Deaths
+WHERE continent IS NOT NULL
+GROUP BY location
+ORDER BY TotalDeathCount DESC
+
+--We look at which country has the highest deaths to population
+SELECT location, population, MAX(total_deaths) AS HighestDeathCount, MAX((total_deaths/population))*100 AS PercentageOfPopulationByDeath
+FROM Covid.Deaths
+WHERE continent IS NOT NULL
+GROUP BY location, population
+ORDER BY PercentageOfPopulationByDeath DESC
+
+/*We will be looking at data by continents*/
+--Which continent has the most death count
+SELECT location, MAX(total_deaths) AS TotalDeathCount
+FROM Covid.Deaths
+WHERE continent IS NULL
+GROUP BY location
+ORDER BY TotalDeathCount DESC
+
+--Which continent has the highest deaths to population
+SELECT location, MAX(total_deaths) AS HighestDeathCount, MAX((total_deaths/population))*100 AS PercentageOfPopulationByDeath
+FROM Covid.Deaths
+WHERE continent IS NULL
+GROUP BY location
+ORDER BY PercentageOfPopulationByDeath DESC
+
+/*Global Number*/
+--We use the sum of new cases and deaths in order to conclude how many people have Covid or perish globally each day 
+SELECT date, SUM(new_cases) AS GlobalCases, SUM(new_deaths) AS GlobalDeaths
+FROM Covid.Deaths
+WHERE continent IS NOT NULL
+GROUP BY date
+ORDER BY date
+
+--We will find percentage of Covid cases to death across the globe by percentage each day
+SELECT date, SUM(new_cases) AS TotalCases, SUM(new_deaths) AS TotalDeaths, SUM(new_deaths)/SUM(new_cases)*100 AS DeathPercentage
+FROM Covid.Deaths
+WHERE continent IS NOT NULL
+GROUP BY date
+ORDER BY date
+
+--This is total cases and deaths globally
+SELECT SUM(new_cases) AS TotalCases, SUM(new_deaths) AS TotalDeaths, SUM(new_deaths)/SUM(new_cases)*100 AS DeathPercentage
+FROM Covid.Deaths
+WHERE continent IS NOT NULL
+
+
+/*Let's look at Covid vaccinations and join them*/
+/*SELECT *
+FROM Covid.Vaccinations*/
+
+--Join table
+SELECT *
+FROM Covid.Deaths AS Dea
+INNER JOIN Covid.Vaccinations AS Vac 
+  ON Dea.location = Vac.location AND Dea.date = Vac.date
+WHERE Dea.continent IS NOT NULL
+ORDER BY Dea.location, Dea.date 
+
+--Let's look at total population vs vaccination
+SELECT Dea.location, Dea.date, Dea.population, Vac.new_vaccinations
+FROM Covid.Deaths AS Dea
+INNER JOIN Covid.Vaccinations AS Vac 
+  ON Dea.location = Vac.location AND Dea.date = Vac.date 
+WHERE Dea.continent IS NOT NULL 
+ORDER BY Dea.location, Dea.date
+
+--We will look at total number of vaccinations by country each day
+SELECT Dea.location, Dea.date, Dea.population, Vac.new_vaccinations, SUM(Vac.new_vaccinations) OVER(PARTITION BY Dea.location ORDER BY Dea.location, Dea.date) AS DailyTotalVaccinations
+FROM Covid.Deaths AS Dea
+INNER JOIN Covid.Vaccinations AS Vac 
+  ON Dea.location = Vac.location AND Dea.date = Vac.date 
+WHERE Dea.continent IS NOT NULL 
+ORDER BY Dea.location, Dea.date
+
+--We will look at total number of vaccinations by country each day and find percentage of population vaccinated
+--We can do 2 ways
+--1.This is an easy way, a little bit messy
+SELECT Dea.location, Dea.date, Dea.population, Vac.new_vaccinations, SUM(Vac.new_vaccinations) OVER(PARTITION BY Dea.location ORDER BY Dea.location, Dea.date) AS DailyTotalVaccinations, (SUM(Vac.new_vaccinations) OVER(PARTITION BY Dea.location ORDER BY Dea.location, Dea.date)/Dea.population*100)
+FROM Covid.Deaths AS Dea
+INNER JOIN Covid.Vaccinations AS Vac 
+  ON Dea.location = Vac.location AND Dea.date = Vac.date 
+WHERE Dea.continent IS NOT NULL 
+ORDER BY Dea.location, Dea.date
+
+--2.Using CTE
+WITH PopulationVsVaccinations
+AS 
+(
+SELECT 
+  Dea.location, 
+  Dea.date, 
+  Dea.population, 
+  Vac.new_vaccinations, 
+  SUM(Vac.new_vaccinations) OVER(PARTITION BY Dea.location ORDER BY Dea.location, Dea.date) AS DailyTotalVaccinations
+FROM Covid.Deaths AS Dea
+INNER JOIN Covid.Vaccinations AS Vac 
+  ON Dea.location = Vac.location AND Dea.date = Vac.date 
+WHERE Dea.continent IS NOT NULL 
+)
+SELECT *, DailyTotalVaccinations/population*100 AS PercentageOfDailyTotalVaccinationsToPopulation
+FROM PopulationVsVaccinations
+
+
+/*We will create View to store data for later visualisation*/
+--Many people have been vaccinated by countries and by days
+CREATE VIEW Covid.PopulationVsVaccinations AS
+SELECT 
+  Dea.location, 
+  Dea.date, 
+  Dea.population, 
+  Vac.new_vaccinations, 
+  SUM(Vac.new_vaccinations) OVER(PARTITION BY Dea.location ORDER BY Dea.location, Dea.date) AS DailyTotalVaccinations
+FROM Covid.Deaths AS Dea
+INNER JOIN Covid.Vaccinations AS Vac 
+  ON Dea.location = Vac.location AND Dea.date = Vac.date 
+WHERE Dea.continent IS NOT NULL 
