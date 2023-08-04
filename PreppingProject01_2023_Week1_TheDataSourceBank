@@ -1,0 +1,66 @@
+/*This is my SQL for preparing data from preppingdata.com, 2023 week1 challenge
+https://preppindata.blogspot.com/2023/01/2023-week-1-data-source-bank.html */
+/*Check my query https://console.cloud.google.com/bigquery?sq=345096234168:778aec21089344bb97384600e8f2025d */
+
+SELECT *
+FROM preppingdata.2023week1.week1
+ORDER BY TRANSACTION_Code
+
+--This is Output 1 from which I extract first letters of transaction ID which indicate the banks and find the sum of transaction values of each bank
+WITH CTE
+AS (
+SELECT 
+  CASE 
+  WHEN Transaction_Code LIKE 'DSB%' THEN SUBSTRING(Transaction_Code,1,3)
+  WHEN Transaction_Code LIKE 'DS%' THEN SUBSTRING(Transaction_Code,1,2)
+  WHEN Transaction_Code LIKE 'DTB%' THEN SUBSTRING(Transaction_Code,1,3)
+  ELSE Transaction_Code
+  END AS Bank,
+  Value
+FROM preppingdata.2023week1.week1 
+)
+SELECT Bank, SUM(Value) AS Total_Values
+FROM CTE
+GROUP BY Bank
+
+--Now I will be converting the date to days of a week
+--We will be getting the second output
+SELECT
+  CASE 
+  WHEN Transaction_Code LIKE 'DSB%' THEN SUBSTRING(Transaction_Code,1,3)
+  WHEN Transaction_Code LIKE 'DS%' THEN SUBSTRING(Transaction_Code,1,2)
+  WHEN Transaction_Code LIKE 'DTB%' THEN SUBSTRING(Transaction_Code,1,3)
+  ELSE Transaction_Code
+  END AS Bank,
+  CASE
+  WHEN Online_or_In_Person = 1 THEN 'Online'
+  WHEN Online_or_In_Person = 2 THEN 'In_Person'
+  END AS Transaction_Type,
+  FORMAT_TIMESTAMP('%A',Transaction_Date) AS day_of_week,
+  Value
+FROM preppingdata.2023week1.week1
+
+--Next will see total values of each customer by bank and by customer code using CTE
+--This is the expected third output 
+WITH CTE 
+AS (
+SELECT
+CASE 
+  WHEN Transaction_Code LIKE 'DSB%' THEN SUBSTRING(Transaction_Code, 1, 3)
+  WHEN Transaction_Code LIKE 'DS%' THEN SUBSTRING(Transaction_Code, 1, 2)
+  WHEN Transaction_Code LIKE 'DTB%' THEN SUBSTRING(Transaction_Code, 1, 3)
+  ELSE Transaction_Code
+  END AS Bank,
+CASE
+  WHEN Online_or_In_Person = 1 THEN 'Online'
+  WHEN Online_or_In_Person = 2 THEN 'In_Person'
+  END AS Transaction_Type,
+FORMAT_TIMESTAMP('%A', Transaction_Date) AS day_of_week,
+Customer_Code,
+Value
+FROM preppingdata.2023week1.week1
+)
+
+SELECT Bank, Customer_Code, SUM(Value) AS TotalValue
+FROM CTE
+GROUP BY Bank, Customer_Code
